@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Arya — Secure Voice AI Assistant</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body class="bg-slate-900 text-white min-h-screen">
+  <div class="max-w-6xl mx-auto p-6">
+    <header class="flex items-center justify-between mb-6">
+      <h1 class="text-3xl font-bold">
+        🤖 Arya <span class="text-emerald-400">— Secure Voice AI Assistant</span>
+      </h1>
+      <div id="status" class="text-sm px-3 py-1 rounded-full bg-slate-800 border border-slate-700">
+        Connecting...
+      </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <section class="lg:col-span-2 bg-slate-800/60 rounded-2xl p-4 border border-slate-700">
+        <h2 class="text-xl font-semibold mb-3">Live Console</h2>
+        <div id="log" class="h-[420px] overflow-y-auto space-y-2 pr-2">
+          <div class="flex gap-2">
+            <span class="text-xs px-2 py-0.5 rounded-full border border-slate-600 text-slate-300 bg-slate-500/10">System</span>
+            <div class="text-slate-200">Connecting to server...</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bg-slate-800/60 rounded-2xl p-4 border border-slate-700">
+        <h2 class="text-xl font-semibold mb-3 flex items-center">Hologram Mode
+          <span id="holoBadge" class="ml-2 text-xs px-2 py-1 rounded-full bg-rose-500/20 border border-rose-400/40 text-rose-200 hidden">ACTIVE</span>
+        </h2>
+        <div id="holo" class="aspect-square rounded-2xl border border-slate-700 flex items-center justify-center">
+          <div id="holoCanvas" class="hidden w-full h-full relative overflow-hidden rounded-2xl">
+            <div class="absolute inset-0 animate-pulse" style="background: radial-gradient(circle at 50% 50%, rgba(16,185,129,.25), transparent 60%);"></div>
+            <div class="absolute inset-0" id="ring"></div>
+          </div>
+          <div id="holoOff" class="text-slate-400 text-sm">Say "Activate Hologram" ✨</div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="mt-6 text-slate-400 text-sm">
+      <p>Flow: <span class="text-slate-200">Face Authentication → Live Dashboard → Voice Commands</span>. Try:
+        <span class="text-emerald-400">"Open Notepad"</span>,
+        <span class="text-emerald-400">"Search AI future"</span>,
+        <span class="text-emerald-400">"What time is it"</span>,
+        <span class="text-cyan-400">"Activate Hologram"</span>,
+        <span class="text-rose-400">"Emergency Lockdown"</span>.
+      </p>
+    </footer>
+  </div>
+
+  <style>
+    #ring::before, #ring::after {
+      content: "";
+      position: absolute;
+      inset: 10%;
+      border-radius: 9999px;
+      border: 3px solid rgba(16,185,129,.6);
+      filter: drop-shadow(0 0 10px rgba(16,185,129,.9));
+      animation: spin 8s linear infinite;
+    }
+    #ring::after {
+      inset: 18%;
+      border-color: rgba(99,102,241,.6);
+      filter: drop-shadow(0 0 10px rgba(99,102,241,.9));
+      animation-direction: reverse;
+      animation-duration: 12s;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+
+  <script>
+    // Update the connection URL to match your server
+    const socket = io('http://localhost:3000');
+    const $status = document.getElementById('status');
+    const $log = document.getElementById('log');
+    const $holoCanvas = document.getElementById('holoCanvas');
+    const $holoOff = document.getElementById('holoOff');
+    const $holoBadge = document.getElementById('holoBadge');
+
+    function addLine(who, text) {
+      const row = document.createElement('div');
+      row.className = 'flex gap-2';
+      const tag = document.createElement('span');
+      tag.className = 'text-xs px-2 py-0.5 rounded-full border';
+      tag.textContent = who;
+      if (who === 'You') tag.classList.add('border-sky-500','text-sky-300','bg-sky-500/10');
+      else if (who === 'Arya') tag.classList.add('border-emerald-500','text-emerald-300','bg-emerald-500/10');
+      else tag.classList.add('border-slate-600','text-slate-300','bg-slate-500/10');
+
+      const msg = document.createElement('div');
+      msg.className = 'text-slate-200';
+      msg.textContent = text;
+      row.appendChild(tag); row.appendChild(msg);
+      $log.appendChild(row);
+      $log.scrollTop = $log.scrollHeight;
+    }
+
+    // Socket event handlers
+    socket.on('connect', () => {
+      $status.textContent = '✅ Connected — Waiting for voice commands…';
+      addLine('System', 'Connected to server');
+    });
+
+    socket.on('disconnect', () => {
+      $status.textContent = '❌ Disconnected';
+      addLine('System', 'Disconnected from server');
+    });
+
+    socket.on('status', (d) => { 
+      $status.textContent = d.text || ''; 
+    });
+    
+    socket.on('log', (d) => { 
+      addLine(d.who || 'Log', d.text || ''); 
+    });
+    
+    socket.on('holo', (d) => {
+      const on = !!d.on;
+      if (on) {
+        $holoCanvas.classList.remove('hidden');
+        $holoOff.classList.add('hidden');
+        $holoBadge.classList.remove('hidden');
+      } else {
+        $holoCanvas.classList.add('hidden');
+        $holoOff.classList.remove('hidden');
+        $holoBadge.classList.add('hidden');
+      }
+    });
+
+    // Add error handling
+    socket.on('connect_error', (error) => {
+      $status.textContent = '❌ Connection Failed';
+      addLine('System', 'Failed to connect to server: ' + error.message);
+      console.error('Connection error:', error);
+    });
+  </script>
+</body>
+</html>
